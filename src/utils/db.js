@@ -52,7 +52,6 @@ export const getSettings = async () => {
       nurseName: '',
       facilityName: '',
       defaultQuartier: '',
-      autoCalculateScore: true,
       geminiApiKey: '',
       ocrEngine: 'local',
       customScoresTable: null

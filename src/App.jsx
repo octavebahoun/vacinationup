@@ -34,7 +34,6 @@ import {
   formatMonthFrench
 } from './utils/exports';
 import { performOCR } from './utils/ocr';
-import { initWhoStandards, calculateNutritionZScore } from './utils/who';
 
 // Initial Sample Data to help get started
 const SAMPLE_KIDS = [
@@ -193,7 +192,6 @@ function App() {
     nurseName: '',
     facilityName: '',
     defaultQuartier: 'Avotrou',
-    autoCalculateScore: true,
     geminiApiKey: '',
     ocrEngine: 'local'
   });
@@ -250,15 +248,11 @@ function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Initialize WHO Standards in IndexedDB
-        await initWhoStandards();
-
         const storedKids = await getKids();
         const storedSettings = await getSettings();
         
         if (storedSettings) {
           setSettings({
-            autoCalculateScore: true,
             ocrEngine: 'local',
             geminiApiKey: '',
             ...storedSettings
@@ -296,45 +290,6 @@ function App() {
     setSettings(updatedSettings);
     await saveSettings(updatedSettings);
   };
-
-  // Auto-calculate score for new kid form
-  useEffect(() => {
-    if (settings.autoCalculateScore && formData.weight && formData.height && formData.sex) {
-      const result = calculateNutritionZScore(formData.weight, formData.height, formData.sex);
-      if (result) {
-        setFormData(prev => {
-          if (prev.score === String(result.discreteScore) && prev.screeningMalnutrition === result.status) {
-            return prev;
-          }
-          return {
-            ...prev,
-            score: String(result.discreteScore),
-            screeningMalnutrition: result.status
-          };
-        });
-      }
-    }
-  }, [formData.weight, formData.height, formData.sex, settings.autoCalculateScore]);
-
-  // Auto-calculate score for editing form
-  useEffect(() => {
-    if (editingFormData && settings.autoCalculateScore && editingFormData.weight && editingFormData.height && editingFormData.sex) {
-      const result = calculateNutritionZScore(editingFormData.weight, editingFormData.height, editingFormData.sex);
-      if (result) {
-        setEditingFormData(prev => {
-          if (!prev) return prev;
-          if (prev.score === String(result.discreteScore) && prev.screeningMalnutrition === result.status) {
-            return prev;
-          }
-          return {
-            ...prev,
-            score: String(result.discreteScore),
-            screeningMalnutrition: result.status
-          };
-        });
-      }
-    }
-  }, [editingFormData?.weight, editingFormData?.height, editingFormData?.sex, settings.autoCalculateScore]);
 
   // Age helper (Months) at the time of entry date
   const getAgeInMonths = (birthDateStr, entryDateStr) => {
@@ -577,14 +532,11 @@ function App() {
       // Override default date for OCR entries to the session entry date or custom OCR date
       const finalRecords = records.map(r => {
         let score = r.score !== undefined ? String(r.score) : '0';
-        let screeningMalnutrition = r.screeningMalnutrition || 'NON';
-        if (settings.autoCalculateScore && r.weight && r.height && r.sex) {
-          const result = calculateNutritionZScore(r.weight, r.height, r.sex);
-          if (result) {
-            score = String(result.discreteScore);
-            screeningMalnutrition = result.status;
-          }
-        }
+        let screeningMalnutrition = 'NON';
+        const scoreVal = parseFloat(score);
+        if (scoreVal === -2) screeningMalnutrition = 'MAM';
+        else if (scoreVal === -3) screeningMalnutrition = 'MAS';
+        
         return {
           ...r,
           score,
@@ -606,15 +558,11 @@ function App() {
       const copy = [...prev];
       const updatedRow = { ...copy[index], [field]: value };
       
-      // Auto-calculate score for this OCR row if weight, height, or sex changed
-      if (settings.autoCalculateScore && (field === 'weight' || field === 'height' || field === 'sex')) {
-        if (updatedRow.weight && updatedRow.height && updatedRow.sex) {
-          const result = calculateNutritionZScore(updatedRow.weight, updatedRow.height, updatedRow.sex);
-          if (result) {
-            updatedRow.score = String(result.discreteScore);
-            updatedRow.screeningMalnutrition = result.status;
-          }
-        }
+      if (field === 'score') {
+        const scoreVal = parseFloat(value);
+        if (scoreVal === -2) updatedRow.screeningMalnutrition = 'MAM';
+        else if (scoreVal === -3) updatedRow.screeningMalnutrition = 'MAS';
+        else updatedRow.screeningMalnutrition = 'NON';
       }
       
       copy[index] = updatedRow;
@@ -1121,19 +1069,7 @@ function App() {
                       <option value="-2">-2 (MAM)</option>
                       <option value="-3">-3 (MAS)</option>
                     </select>
-                    {formData.weight && formData.height && (
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
-                        Z-score OMS : <strong>{(() => {
-                          const res = calculateNutritionZScore(formData.weight, formData.height, formData.sex);
-                          return res ? `${res.zScore > 0 ? '+' : ''}${res.zScore}` : 'Non calculable (hors normes/incomplet)';
-                        })()}</strong>
-                        {settings.autoCalculateScore && (
-                          <span style={{ marginLeft: '0.5rem', color: 'var(--success)', fontWeight: 'bold' }}>
-                            ✓ Automatique
-                          </span>
-                        )}
-                      </span>
-                    )}
+
                   </div>
                   <div className="input-group">
                     <label>Tour de bras (PB)</label>
@@ -1433,14 +1369,7 @@ function App() {
                                     <option value="-2">-2</option>
                                     <option value="-3">-3</option>
                                   </select>
-                                  {editingFormData.weight && editingFormData.height && (
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem', whiteSpace: 'nowrap' }}>
-                                      Z: {(() => {
-                                        const res = calculateNutritionZScore(editingFormData.weight, editingFormData.height, editingFormData.sex);
-                                        return res ? `${res.zScore > 0 ? '+' : ''}${res.zScore}` : 'N/A';
-                                      })()}
-                                    </span>
-                                  )}
+
                                 </div>
                               </td>
                               <td>
@@ -1911,27 +1840,7 @@ function App() {
               </div>
             </div>
 
-            <div className="card">
-              <div className="card-title">
-                <h3>Paramètres Cliniques (OMS)</h3>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={settings.autoCalculateScore}
-                    onChange={(e) => updateSettingsInDb({ ...settings, autoCalculateScore: e.target.checked })}
-                    style={{ width: '1.2rem', height: '1.2rem', marginTop: '0.2rem', cursor: 'pointer' }}
-                  />
-                  <div>
-                    <span style={{ fontWeight: '600', display: 'block', fontSize: '1rem' }}>Calcul automatique de l'indice Poids/Taille (Z-score OMS)</span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem', lineHeight: '1.4' }}>
-                      Calcule automatiquement l'indice nutritionnel (BEN, MAM, MAS) selon les standards de longueur/hauteur pour l'âge et le sexe de l'enfant lors de la saisie du poids et de la taille. Si désactivé, vous pourrez saisir manuellement les scores -3, -2, etc.
-                    </span>
-                  </div>
-                </label>
-              </div>
-            </div>
+
 
             <div className="card">
               <div className="card-title">
