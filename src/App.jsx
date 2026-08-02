@@ -279,6 +279,46 @@ function App() {
     loadData();
   }, []);
 
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  // Handle PWA installation
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setIsInstallable(false);
+      console.log('PWA was installed');
+    };
+
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      setIsInstallable(false);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    setDeferredPrompt(null);
+    setIsInstallable(false);
+  };
+
   // Sync kids database when kids state changes
   const updateKidsInDb = async (updatedKids) => {
     setKids(updatedKids);
@@ -733,6 +773,31 @@ function App() {
               <Settings size={20} />
               <span>Config</span>
             </button>
+            {isInstallable && (
+              <button 
+                className="sidebar-btn sidebar-install-btn animate-pulse-soft" 
+                onClick={() => { handleInstallClick(); setIsSidebarOpen(false); }}
+                style={{
+                  marginTop: '1.5rem',
+                  background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                  color: 'white',
+                  fontWeight: '600',
+                  boxShadow: 'var(--shadow-md)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  width: '100%',
+                  justifyContent: 'center'
+                }}
+              >
+                <Download size={20} />
+                <span>Installer l'application</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -755,8 +820,36 @@ function App() {
           </div>
         </div>
 
-        <div className="nav-links">
-          <button className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {isInstallable && (
+            <button 
+              className="install-btn animate-pulse-soft" 
+              onClick={handleInstallClick}
+              title="Installer l'application"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 0.85rem',
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
+                whiteSpace: 'nowrap',
+                transition: 'transform var(--transition-fast)'
+              }}
+            >
+              <Download size={14} />
+              <span>Installer l'app</span>
+            </button>
+          )}
+
+          <div className="nav-links">
+            <button className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             <LayoutDashboard size={18} />
             <span>Tableau de bord</span>
           </button>
@@ -785,6 +878,7 @@ function App() {
             <Settings size={18} />
             <span>Config</span>
           </button>
+        </div>
         </div>
       </nav>
 
