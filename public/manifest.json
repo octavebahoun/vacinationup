@@ -1,0 +1,17 @@
+{
+  "short_name": "SuiviVaccin",
+  "name": "Suivi des Enfants & Rapports de Vaccination",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "display": "standalone",
+  "orientation": "any"
+}
