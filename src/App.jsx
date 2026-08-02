@@ -278,59 +278,6 @@ function App() {
     };
     loadData();
   }, []);
-
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [showInstallModal, setShowInstallModal] = useState(false);
-
-  // Handle PWA installation
-  useEffect(() => {
-    const checkStandalone = () => {
-      const standalone = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
-      setIsStandalone(standalone);
-    };
-
-    checkStandalone();
-
-    const mediaQuery = window.matchMedia('(display-mode: standalone)');
-    const handleMediaChange = (e) => {
-      setIsStandalone(e.matches);
-    };
-    mediaQuery.addEventListener('change', handleMediaChange);
-
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    const handleAppInstalled = () => {
-      setDeferredPrompt(null);
-      setIsStandalone(true);
-      console.log('PWA was installed');
-    };
-
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    return () => {
-      mediaQuery.removeEventListener('change', handleMediaChange);
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response to the install prompt: ${outcome}`);
-      setDeferredPrompt(null);
-    } else {
-      setShowInstallModal(true);
-    }
-  };
-
   // Sync kids database when kids state changes
   const updateKidsInDb = async (updatedKids) => {
     setKids(updatedKids);
@@ -785,31 +732,6 @@ function App() {
               <Settings size={20} />
               <span>Config</span>
             </button>
-            {!isStandalone && (
-              <button 
-                className="sidebar-btn sidebar-install-btn animate-pulse-soft" 
-                onClick={() => { handleInstallClick(); setIsSidebarOpen(false); }}
-                style={{
-                  marginTop: '1.5rem',
-                  background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
-                  color: 'white',
-                  fontWeight: '600',
-                  boxShadow: 'var(--shadow-md)',
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.75rem 1rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  width: '100%',
-                  justifyContent: 'center'
-                }}
-              >
-                <Download size={20} />
-                <span>Installer l'application</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -832,36 +754,8 @@ function App() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {!isStandalone && (
-            <button 
-              className="install-btn animate-pulse-soft" 
-              onClick={handleInstallClick}
-              title="Installer l'application"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.5rem 0.85rem',
-                background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.8rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                boxShadow: 'var(--shadow-sm)',
-                whiteSpace: 'nowrap',
-                transition: 'transform var(--transition-fast)'
-              }}
-            >
-              <Download size={14} />
-              <span>Installer l'app</span>
-            </button>
-          )}
-
-          <div className="nav-links">
-            <button className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+        <div className="nav-links">
+          <button className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             <LayoutDashboard size={18} />
             <span>Tableau de bord</span>
           </button>
@@ -890,7 +784,6 @@ function App() {
             <Settings size={18} />
             <span>Config</span>
           </button>
-        </div>
         </div>
       </nav>
 
@@ -2059,81 +1952,6 @@ function App() {
         )}
         
       </main>
-      
-      {/* PWA Install Modal */}
-      {showInstallModal && (
-        <div className="pwa-modal-overlay" onClick={() => setShowInstallModal(false)}>
-          <div className="pwa-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="pwa-modal-close" onClick={() => setShowInstallModal(false)} aria-label="Fermer">
-              <X size={20} />
-            </button>
-            <div className="pwa-modal-title">
-              <Download size={24} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-              <h3 style={{ margin: 0, fontWeight: 700 }}>Installer l'application</h3>
-            </div>
-            
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.5, margin: '0.5rem 0 1.5rem 0' }}>
-              Ajoutez **SuiviVaccin** sur votre écran d'accueil pour l'ouvrir instantanément et l'utiliser sans connexion internet.
-            </p>
-
-            <div className="pwa-step-list">
-              {/iPhone|iPad|iPod/i.test(navigator.userAgent) ? (
-                // iOS Guide
-                <>
-                  <div className="pwa-step">
-                    <div className="pwa-step-number">1</div>
-                    <div className="pwa-step-text">
-                      Ouvrez ce site dans le navigateur <strong>Safari</strong> de votre appareil iOS.
-                    </div>
-                  </div>
-                  <div className="pwa-step">
-                    <div className="pwa-step-number">2</div>
-                    <div className="pwa-step-text">
-                      Appuyez sur le bouton de partage <strong>Partager</strong> <span style={{ fontSize: '1.1rem' }}>📤</span> dans la barre d'outils.
-                    </div>
-                  </div>
-                  <div className="pwa-step">
-                    <div className="pwa-step-number">3</div>
-                    <div className="pwa-step-text">
-                      Faites défiler vers le bas et sélectionnez <strong>Sur l'écran d'accueil</strong> <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>➕</span>.
-                    </div>
-                  </div>
-                </>
-              ) : (
-                // Android / Generic Guide
-                <>
-                  <div className="pwa-step">
-                    <div className="pwa-step-number">1</div>
-                    <div className="pwa-step-text">
-                      Appuyez sur l'icône de menu (les <strong>3 points</strong> vertical <span style={{ fontWeight: 'bold' }}>⠇</span>) dans le coin supérieur droit du navigateur.
-                    </div>
-                  </div>
-                  <div className="pwa-step">
-                    <div className="pwa-step-number">2</div>
-                    <div className="pwa-step-text">
-                      Sélectionnez <strong>Installer l'application</strong> ou <strong>Ajouter à l'écran d'accueil</strong>.
-                    </div>
-                  </div>
-                  <div className="pwa-step">
-                    <div className="pwa-step-number">3</div>
-                    <div className="pwa-step-text">
-                      Validez en appuyant sur <strong>Ajouter</strong> ou <strong>Installer</strong>.
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <button 
-              className="btn btn-primary" 
-              onClick={() => setShowInstallModal(false)}
-              style={{ width: '100%', marginTop: '1rem' }}
-            >
-              Compris !
-            </button>
-          </div>
-        </div>
-      )}
       
       {/* Footer */}
       <footer style={{ borderTop: '1px solid var(--border)', padding: '1rem 2rem', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', background: 'var(--bg-card)' }}>
