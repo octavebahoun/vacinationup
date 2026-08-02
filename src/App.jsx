@@ -1961,7 +1961,7 @@ function App() {
                         onChange={(e) => updateSettingsInDb({ ...settings, ocrEngine: e.target.value })}
                         style={{ cursor: 'pointer' }}
                       />
-                      <span>Google Gemini 1.5 Flash AI (Haute précision, nécessite internet)</span>
+                      <span>Google Gemini Flash AI (Haute précision, nécessite internet)</span>
                     </label>
                   </div>
                 </div>
@@ -1979,7 +1979,7 @@ function App() {
                       />
                     </div>
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                      Le modèle Gemini 1.5 Flash permet de déchiffrer avec une précision chirurgicale les tableaux de registres manuscrits ou photographiés.
+                      Le modèle Gemini Flash permet de déchiffrer avec une précision chirurgicale les tableaux de registres manuscrits ou photographiés.
                       Vous pouvez créer une clé API gratuite en 1 minute sur le site <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>Google AI Studio</a>.
                     </span>
                   </div>
