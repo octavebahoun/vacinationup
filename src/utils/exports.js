@@ -30,19 +30,9 @@ export const calculateReportData = (kids, monthStr) => {
   });
 
   kidsThisMonth.forEach(kid => {
-    if (!kid.birthDate || !kid.sex) return;
+    if (kid.age === undefined || kid.age === null || kid.age === '' || !kid.sex) return;
     
-    // Calculate age in months at the time of entry/report
-    const birthDateObj = new Date(kid.birthDate);
-    const entryDateObj = new Date(kid.date);
-    
-    let ageInMonths = (entryDateObj.getFullYear() - birthDateObj.getFullYear()) * 12 + 
-                     (entryDateObj.getMonth() - birthDateObj.getMonth());
-    
-    // Adjust if birth day is later in month
-    if (entryDateObj.getDate() < birthDateObj.getDate()) {
-      ageInMonths--;
-    }
+    const ageInMonths = Number(kid.age);
 
     if (ageInMonths < 6 || ageInMonths > 59) {
       // Out of bounds for these reports (e.g. 0-5 months or 5+ years)
@@ -104,7 +94,7 @@ export const exportKidsToExcel = (kids) => {
     'Date de Saisie': kid.date || '',
     'Nom Mère': kid.motherName || '',
     'Prénom Enfant': kid.childName || '',
-    'Date Naissance': kid.birthDate || '',
+    'Âge (Mois)': kid.age !== undefined ? kid.age : '',
     'Sexe': kid.sex || '',
     'Quartier': kid.quartier || '',
     'Téléphone': kid.phone || '',

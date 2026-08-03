@@ -44,7 +44,7 @@ export const performOCR = async (imageFile, onProgress, settings) => {
             {
               parts: [
                 {
-                  text: "Tu es un assistant médical spécialisé en nutrition et vaccination infantile. Voici l'image d'une page de registre manuscrit ou imprimé. Analyse-la de façon extrêmement précise pour en extraire toutes les lignes du tableau sous forme de tableau JSON. Pour chaque enfant détecté, renvoie les propriétés suivantes (laisse les champs textuels vides s'ils sont absents, mets false par défaut pour edema et screeningAnemia, et estime approximativement la date de naissance YYYY-MM-DD d'après l'âge en mois si mentionné par rapport à la date du jour):\n- motherName (Nom de la mère)\n- childName (Prénom de l'enfant)\n- birthDate (Date de naissance au format YYYY-MM-DD)\n- sex (Sexe de l'enfant, uniquement 'M' ou 'F')\n- quartier (Quartier)\n- phone (Téléphone)\n- weight (Poids en kg, nombre)\n- height (Taille en cm, nombre)\n- score (Indice Poids/Taille ou score: -3, -2, -1.5, -1, 0, 1, 1.5, etc.)\n- pb (Périmètre brachial/Tour de bras PB: 'ROUGE', 'JAUNE' ou 'VERT')\n- edema (Œdèmes bilatéraux: true ou false)\n- temp (Température en °C, nombre)\n- screeningAnemia (Anémie détectée: true ou false)\n- screeningMalnutrition (Statut nutritionnel: 'MAS', 'MAM' ou 'NON' selon le Z-score/Poids-Taille: -3 = MAS, -2 = MAM, autre = NON)\n\nRenvoie uniquement un tableau JSON valide contenant la liste d'objets, directement parsable."
+                  text: "Tu es un assistant médical spécialisé en nutrition et vaccination infantile. Voici l'image d'une page de registre manuscrit ou imprimé. Analyse-la de façon extrêmement précise pour en extraire toutes les lignes du tableau sous forme de tableau JSON. Pour chaque enfant détecté, renvoie les propriétés suivantes (laisse les champs textuels vides s'ils sont absents, mets false par défaut pour edema et screeningAnemia):\n- motherName (Nom de la mère)\n- childName (Prénom de l'enfant)\n- age (Âge de l'enfant en mois sous forme d'entier, ex: 12 ou 6. S'il y a des années, convertis-les en mois. Si non spécifié, essaie de deviner ou laisse vide)\n- sex (Sexe de l'enfant, uniquement 'M' ou 'F')\n- quartier (Quartier)\n- phone (Téléphone)\n- weight (Poids en kg, nombre)\n- height (Taille en cm, nombre)\n- score (Indice Poids/Taille ou score: -3, -2, -1.5, -1, 0, 1, 1.5, etc.)\n- pb (Périmètre brachial/Tour de bras PB: 'ROUGE', 'JAUNE' ou 'VERT')\n- edema (Œdèmes bilatéraux: true ou false)\n- temp (Température en °C, nombre)\n- screeningAnemia (Anémie détectée: true ou false)\n- screeningMalnutrition (Statut nutritionnel: 'MAS', 'MAM' ou 'NON' selon le Z-score/Poids-Taille: -3 = MAS, -2 = MAM, autre = NON)\n\nRenvoie uniquement un tableau JSON valide contenant la liste d'objets, directement parsable."
                 },
                 {
                   inlineData: {
@@ -85,7 +85,7 @@ export const performOCR = async (imageFile, onProgress, settings) => {
         id: 'ocr_' + Math.random().toString(36).substr(2, 9),
         motherName: r.motherName || '',
         childName: r.childName || '',
-        birthDate: r.birthDate || new Date().toISOString().split('T')[0],
+        age: r.age !== undefined && r.age !== null ? parseInt(r.age, 10) : '',
         sex: r.sex === 'M' || r.sex === 'F' ? r.sex : 'F',
         quartier: r.quartier || '',
         phone: r.phone || '',
@@ -171,8 +171,7 @@ function parseOcrLines(ocrLines) {
     else if (fMatch) sex = 'F';
 
     // 2. Find Age
-    let ageMonths = null;
-    let birthDate = '';
+    let ageMonths = '';
     
     // Look for "6 mois", "10 mois", "1 an", "1an", etc.
     const ageMoisMatch = text.match(/(\d+)\s*mois/i);
@@ -183,13 +182,6 @@ function parseOcrLines(ocrLines) {
     } else if (ageAnMatch) {
       const years = parseInt(ageAnMatch[1], 10);
       ageMonths = years * 12;
-    }
-
-    if (ageMonths !== null) {
-      // Calculate a dummy birth date based on ageMonths to satisfy the date field
-      const d = new Date();
-      d.setMonth(d.getMonth() - ageMonths);
-      birthDate = d.toISOString().split('T')[0];
     }
 
     // 3. Find Score (Indice poids/taille)
@@ -230,12 +222,12 @@ function parseOcrLines(ocrLines) {
     }
 
     // Only add if we detected at least a gender or an age or a score, otherwise it's noise
-    if (sex || ageMonths !== null || score !== null) {
+    if (sex || ageMonths !== '' || score !== null) {
       records.push({
         id: 'ocr_' + Math.random().toString(36).substr(2, 9),
         motherName: motherName || 'Nom Mère',
         childName: childName || 'Prénom Enfant',
-        birthDate: birthDate || new Date().toISOString().split('T')[0],
+        age: ageMonths,
         sex: sex || 'F', // default to F if not detected
         quartier: 'Quartier',
         phone: '',

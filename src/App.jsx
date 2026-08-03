@@ -21,7 +21,8 @@ import {
   RefreshCw,
   Info,
   Menu,
-  X
+  X,
+  Play
 } from 'lucide-react';
 
 import './App.css';
@@ -43,7 +44,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-27',
     motherName: 'DIALLO Maimouna',
     childName: 'Diana',
-    birthDate: '2025-07-15', // 1 an (12 mois)
+    age: 12,
     sex: 'F',
     quartier: 'Avotrou',
     phone: '013872',
@@ -61,7 +62,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-27',
     motherName: 'TOGBE Abiba',
     childName: 'Mabarack',
-    birthDate: '2025-07-10', // 1 an (12 mois)
+    age: 12,
     sex: 'M',
     quartier: 'Avotrou',
     phone: '019064',
@@ -79,7 +80,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-27',
     motherName: 'KAHHO Scal',
     childName: 'Sidam',
-    birthDate: '2026-01-20', // 6 mois
+    age: 6,
     sex: 'M',
     quartier: 'Avotrou',
     phone: '014428',
@@ -97,7 +98,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-27',
     motherName: 'ALOUDJINOU Sidonie',
     childName: 'Fiona',
-    birthDate: '2026-01-15', // 6 mois
+    age: 6,
     sex: 'F',
     quartier: 'Avotrou',
     phone: '014388',
@@ -115,7 +116,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-27',
     motherName: 'DOUKOUROU Rachida',
     childName: 'Yikimalow',
-    birthDate: '2026-01-10', // 6 mois
+    age: 6,
     sex: 'F',
     quartier: 'Avotrou',
     phone: '016667',
@@ -134,7 +135,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-31',
     motherName: 'VEVE Lea',
     childName: 'Ines',
-    birthDate: '2025-10-15', // 9 mois
+    age: 9,
     sex: 'F',
     quartier: 'Avotrou',
     phone: '04841',
@@ -152,7 +153,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-31',
     motherName: 'DANDJINOU Odette',
     childName: 'Miracle',
-    birthDate: '2025-09-20', // 10 mois
+    age: 10,
     sex: 'M',
     quartier: 'Avotrou',
     phone: '02191',
@@ -170,7 +171,7 @@ const SAMPLE_KIDS = [
     date: '2026-07-31',
     motherName: 'NEVE Mireille',
     childName: 'Shalom',
-    birthDate: '2025-10-10', // 9 mois
+    age: 9,
     sex: 'M',
     quartier: 'Avotrou',
     phone: '0353',
@@ -205,7 +206,7 @@ function App() {
   const [formData, setFormData] = useState({
     motherName: '',
     childName: '',
-    birthDate: '',
+    age: '',
     sex: 'F',
     quartier: 'Avotrou',
     phone: '',
@@ -237,12 +238,13 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // OCR Import States
-  const [ocrProgress, setOcrProgress] = useState(0);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
-  const [ocrImageFile, setOcrImageFile] = useState(null);
-  const [ocrImageUrl, setOcrImageUrl] = useState('');
+  const [ocrQueue, setOcrQueue] = useState([]);
+  const [ocrSelectedQueueItemId, setOcrSelectedQueueItemId] = useState(null);
   const [ocrParsedRecords, setOcrParsedRecords] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [lastOcrBatchId, setLastOcrBatchId] = useState(localStorage.getItem('lastOcrBatchId') || null);
+  const [lastOcrBatchCount, setLastOcrBatchCount] = useState(Number(localStorage.getItem('lastOcrBatchCount')) || 0);
 
   // Load Data on Mount
   useEffect(() => {
@@ -290,22 +292,6 @@ function App() {
     await saveSettings(updatedSettings);
   };
 
-  // Age helper (Months) at the time of entry date
-  const getAgeInMonths = (birthDateStr, entryDateStr) => {
-    if (!birthDateStr) return 0;
-    const birthDateObj = new Date(birthDateStr);
-    const entryDateObj = new Date(entryDateStr || sessionDate);
-    
-    let ageInMonths = (entryDateObj.getFullYear() - birthDateObj.getFullYear()) * 12 + 
-                     (entryDateObj.getMonth() - birthDateObj.getMonth());
-    
-    if (entryDateObj.getDate() < birthDateObj.getDate()) {
-      ageInMonths--;
-    }
-    return Math.max(0, ageInMonths);
-  };
-
-  // Form Handlers
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -316,12 +302,10 @@ function App() {
 
   const handleAddKidToSession = (e) => {
     e.preventDefault();
-    if (!formData.childName || !formData.birthDate) {
-      alert('Veuillez remplir au moins le prénom de l\'enfant et sa date de naissance.');
+    if (!formData.childName || formData.age === '') {
+      alert('Veuillez remplir au moins le prénom de l\'enfant et son âge en mois.');
       return;
     }
-
-    const calculatedAge = getAgeInMonths(formData.birthDate, sessionDate);
 
     // Auto classify malnutrition screening field for convenience
     let autoMalnutrition = 'NON';
@@ -333,6 +317,7 @@ function App() {
       ...formData,
       id: 'kid_' + Date.now() + Math.random().toString(36).substr(2, 5),
       date: sessionDate,
+      age: parseInt(formData.age, 10),
       weight: formData.weight ? parseFloat(formData.weight) : '',
       height: formData.height ? parseFloat(formData.height) : '',
       score: parseFloat(formData.score),
@@ -347,7 +332,7 @@ function App() {
       ...prev,
       motherName: '',
       childName: '',
-      birthDate: '',
+      age: '',
       weight: '',
       height: '',
       score: '0',
@@ -407,8 +392,11 @@ function App() {
         if (numScore === -2) autoMalnutrition = 'MAM';
         else if (numScore === -3) autoMalnutrition = 'MAS';
 
+        const parsedAge = editingFormData.age !== undefined && editingFormData.age !== '' ? parseInt(editingFormData.age, 10) : '';
+
         return {
           ...editingFormData,
+          age: isNaN(parsedAge) ? '' : parsedAge,
           weight: editingFormData.weight ? parseFloat(editingFormData.weight) : '',
           height: editingFormData.height ? parseFloat(editingFormData.height) : '',
           score: parseFloat(editingFormData.score),
@@ -485,13 +473,40 @@ function App() {
   }, [calculatedReport]);
 
   // OCR Upload Actions
-  const handleOcrFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setOcrImageFile(file);
-      setOcrImageUrl(URL.createObjectURL(file));
-      setOcrParsedRecords([]);
+  const addFilesToQueue = (files) => {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+    
+    if (ocrQueue.length + imageFiles.length > 15) {
+      alert("La file d'attente ne peut pas contenir plus de 15 images.");
+      return;
     }
+    
+    const newItems = imageFiles.map(file => {
+      const id = 'item_' + Date.now() + Math.random().toString(36).substr(2, 5);
+      return {
+        id,
+        file,
+        name: file.name,
+        url: URL.createObjectURL(file),
+        status: 'pending',
+        progress: 0,
+        error: null
+      };
+    });
+    
+    setOcrQueue(prev => {
+      const updated = [...prev, ...newItems];
+      if (updated.length > 0 && !ocrSelectedQueueItemId) {
+        setOcrSelectedQueueItemId(newItems[0].id);
+      }
+      return updated;
+    });
+  };
+
+  const handleOcrFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    addFilesToQueue(files);
   };
 
   const handleDragOver = (e) => {
@@ -506,50 +521,80 @@ function App() {
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setOcrImageFile(file);
-      setOcrImageUrl(URL.createObjectURL(file));
-      setOcrParsedRecords([]);
-    }
+    const files = Array.from(e.dataTransfer.files);
+    addFilesToQueue(files);
+  };
+
+  const handleRemoveQueueItem = (id) => {
+    setOcrQueue(prev => {
+      const updated = prev.filter(item => item.id !== id);
+      if (ocrSelectedQueueItemId === id) {
+        setOcrSelectedQueueItemId(updated.length > 0 ? updated[0].id : null);
+      }
+      return updated;
+    });
+  };
+
+  const clearOcrQueue = () => {
+    setOcrQueue([]);
+    setOcrSelectedQueueItemId(null);
+    setOcrParsedRecords([]);
   };
 
   const runOcrAnalysis = async () => {
-    if (!ocrImageFile) return;
+    const pendingItems = ocrQueue.filter(item => item.status === 'pending');
+    if (pendingItems.length === 0) {
+      alert("Aucune image en attente dans la file.");
+      return;
+    }
+    
     if (settings.ocrEngine === 'gemini' && !settings.geminiApiKey) {
       alert('Voulez-vous utiliser l\'OCR Gemini ? Veuillez configurer votre clé API Google Gemini dans l\'onglet "Config" en premier.');
       setActiveTab('settings');
       return;
     }
-    setIsOcrLoading(true);
-    setOcrProgress(0);
 
-    try {
-      const records = await performOCR(ocrImageFile, (progress) => {
-        setOcrProgress(progress);
-      }, settings);
-      // Override default date for OCR entries to the session entry date or custom OCR date
-      const finalRecords = records.map(r => {
-        let score = r.score !== undefined ? String(r.score) : '0';
-        let screeningMalnutrition = 'NON';
-        const scoreVal = parseFloat(score);
-        if (scoreVal === -2) screeningMalnutrition = 'MAM';
-        else if (scoreVal === -3) screeningMalnutrition = 'MAS';
+    setIsOcrLoading(true);
+
+    // Copy queue to process sequentially
+    let currentQueue = [...ocrQueue];
+    
+    for (let i = 0; i < currentQueue.length; i++) {
+      const item = currentQueue[i];
+      if (item.status !== 'pending') continue;
+      
+      // Update item status to processing
+      setOcrQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'processing', progress: 0 } : q));
+      
+      try {
+        const records = await performOCR(item.file, (progress) => {
+          setOcrQueue(prev => prev.map(q => q.id === item.id ? { ...q, progress } : q));
+        }, settings);
         
-        return {
-          ...r,
-          score,
-          screeningMalnutrition,
-          date: sessionDate
-        };
-      });
-      setOcrParsedRecords(finalRecords);
-      alert(`${finalRecords.length} lignes de données détectées. Veuillez vérifier le tableau ci-dessous avant d'enregistrer.`);
-    } catch (err) {
-      alert('Erreur lors de la lecture de l\'image. Assurez-vous que l\'image contient du texte net.');
-    } finally {
-      setIsOcrLoading(false);
+        const finalRecords = records.map(r => {
+          let score = r.score !== undefined ? String(r.score) : '0';
+          let screeningMalnutrition = 'NON';
+          const scoreVal = parseFloat(score);
+          if (scoreVal === -2) screeningMalnutrition = 'MAM';
+          else if (scoreVal === -3) screeningMalnutrition = 'MAS';
+          
+          return {
+            ...r,
+            score,
+            screeningMalnutrition,
+            date: sessionDate
+          };
+        });
+        
+        setOcrParsedRecords(prev => [...prev, ...finalRecords]);
+        setOcrQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'completed', progress: 100 } : q));
+      } catch (err) {
+        console.error('Error processing item:', item.name, err);
+        setOcrQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'failed', error: err.message || 'Erreur de lecture' } : q));
+      }
     }
+    
+    setIsOcrLoading(false);
   };
 
   const handleOcrParsedCellChange = (index, field, value) => {
@@ -576,7 +621,7 @@ function App() {
   const handleSaveOcrEntries = async () => {
     if (ocrParsedRecords.length === 0) return;
     
-    // Add date to all records
+    const batchId = 'batch_' + Date.now();
     const finalRecords = ocrParsedRecords.map(r => {
       const scoreVal = parseFloat(r.score);
       let screeningMalnutrition = r.screeningMalnutrition || 'NON';
@@ -584,23 +629,50 @@ function App() {
       else if (scoreVal === -3) screeningMalnutrition = 'MAS';
       else screeningMalnutrition = 'NON';
 
+      // Parse age to number safely
+      const parsedAge = r.age !== undefined && r.age !== '' ? parseInt(r.age, 10) : '';
+
       return {
         ...r,
+        age: isNaN(parsedAge) ? '' : parsedAge,
         date: sessionDate,
         weight: r.weight ? parseFloat(r.weight) : '',
         height: r.height ? parseFloat(r.height) : '',
         score: isNaN(scoreVal) ? 0 : scoreVal,
-        screeningMalnutrition
+        screeningMalnutrition,
+        batchId
       };
     });
 
     const updatedKids = [...kids, ...finalRecords];
     await updateKidsInDb(updatedKids);
+    
+    // Save batch info for undo
+    setLastOcrBatchId(batchId);
+    setLastOcrBatchCount(finalRecords.length);
+    localStorage.setItem('lastOcrBatchId', batchId);
+    localStorage.setItem('lastOcrBatchCount', String(finalRecords.length));
+
+    // Clear OCR state
     setOcrParsedRecords([]);
-    setOcrImageFile(null);
-    setOcrImageUrl('');
+    setOcrQueue([]);
+    setOcrSelectedQueueItemId(null);
     alert('Importation OCR enregistrée avec succès !');
     setActiveTab('register');
+  };
+
+  const handleUndoLastOcrImport = async () => {
+    if (!lastOcrBatchId) return;
+    if (confirm(`Voulez-vous vraiment annuler le dernier import et supprimer les ${lastOcrBatchCount} enfants correspondants ?`)) {
+      const updatedKids = kids.filter(k => k.batchId !== lastOcrBatchId);
+      await updateKidsInDb(updatedKids);
+      
+      setLastOcrBatchId(null);
+      setLastOcrBatchCount(0);
+      localStorage.removeItem('lastOcrBatchId');
+      localStorage.removeItem('lastOcrBatchCount');
+      alert('Dernier import OCR annulé avec succès.');
+    }
   };
 
   // Backups Import/Export
@@ -993,12 +1065,14 @@ function App() {
                     />
                   </div>
                   <div className="input-group">
-                    <label>Date de Naissance *</label>
+                    <label>Âge (Mois) *</label>
                     <input
-                      type="date"
-                      name="birthDate"
-                      value={formData.birthDate}
+                      type="number"
+                      name="age"
+                      value={formData.age}
                       onChange={handleFormChange}
+                      min="0"
+                      placeholder="Ex: 12"
                       required
                     />
                   </div>
@@ -1151,7 +1225,6 @@ function App() {
                       <tr>
                         <th>Nom Mère</th>
                         <th>Nom Enfant</th>
-                        <th>Né(e) le</th>
                         <th>Âge (Mois)</th>
                         <th>Sexe</th>
                         <th>Poids (kg)</th>
@@ -1163,13 +1236,11 @@ function App() {
                     </thead>
                     <tbody>
                       {currentDayEntries.map((kid, index) => {
-                        const age = getAgeInMonths(kid.birthDate, kid.date);
                         return (
                           <tr key={kid.id}>
                             <td>{kid.motherName}</td>
                             <td><strong>{kid.childName}</strong></td>
-                            <td>{new Date(kid.birthDate).toLocaleDateString('fr-FR')}</td>
-                            <td>{age} mois</td>
+                            <td>{kid.age} mois</td>
                             <td><span className={`badge ${kid.sex === 'M' ? 'badge-blue' : 'badge-red'}`}>{kid.sex}</span></td>
                             <td>{kid.weight || '-'}</td>
                             <td>{kid.height || '-'}</td>
@@ -1265,7 +1336,6 @@ function App() {
                         <th>Date Visite</th>
                         <th>Nom Mère</th>
                         <th>Prénom Enfant</th>
-                        <th>Né(e) le</th>
                         <th>Âge (Mois)</th>
                         <th>Sexe</th>
                         <th>Quartier</th>
@@ -1279,7 +1349,6 @@ function App() {
                     <tbody>
                       {filteredKids.map(kid => {
                         const isEditing = editingKidId === kid.id;
-                        const age = getAgeInMonths(kid.birthDate, kid.date);
                         
                         if (isEditing) {
                           return (
@@ -1313,14 +1382,14 @@ function App() {
                               </td>
                               <td>
                                 <input
-                                  type="date"
-                                  name="birthDate"
-                                  value={editingFormData.birthDate}
+                                  type="number"
+                                  name="age"
+                                  value={editingFormData.age}
                                   onChange={handleEditChange}
-                                  style={{ padding: '0.2rem', width: '120px' }}
+                                  min="0"
+                                  style={{ padding: '0.2rem', width: '80px' }}
                                 />
                               </td>
-                              <td>{age} mois</td>
                               <td>
                                 <select name="sex" value={editingFormData.sex} onChange={handleEditChange} style={{ padding: '0.2rem' }}>
                                   <option value="M">M</option>
@@ -1405,8 +1474,7 @@ function App() {
                             <td>{new Date(kid.date).toLocaleDateString('fr-FR')}</td>
                             <td>{kid.motherName || '-'}</td>
                             <td><strong>{kid.childName}</strong></td>
-                            <td>{new Date(kid.birthDate).toLocaleDateString('fr-FR')}</td>
-                            <td>{age} mois</td>
+                            <td>{kid.age} mois</td>
                             <td>
                               <span className={`badge ${kid.sex === 'M' ? 'badge-blue' : 'badge-red'}`}>{kid.sex}</span>
                             </td>
@@ -1564,11 +1632,27 @@ function App() {
         {/* VIEW 5: OCR IMPORT */}
         {activeTab === 'ocr' && (
           <div className="animate-fade-in">
-            <div className="section-header">
+            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div className="section-header-left">
                 <h2>Rattrapage Historique (Import OCR)</h2>
-                <p>Photographiez ou importez une page de votre registre papier pour le numériser</p>
+                <p>Mettez en queue jusqu'à 15 photos de registre papier pour les numériser en lot</p>
               </div>
+              {lastOcrBatchId && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleUndoLastOcrImport}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: 'var(--danger)',
+                    borderColor: 'rgba(239, 68, 68, 0.2)'
+                  }}
+                >
+                  <Trash2 size={16} /> Annuler le dernier import ({lastOcrBatchCount} enfants)
+                </button>
+              )}
             </div>
 
             {/* OCR Main Card */}
@@ -1587,207 +1671,265 @@ function App() {
                 </div>
               </div>
 
-              {!ocrImageUrl ? (
-                /* Upload Area */
-                <div
-                  className={`ocr-upload-area ${isDragging ? 'dragging' : ''}`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => document.getElementById('ocr-file-picker').click()}
-                >
-                  <Upload size={48} className="ocr-upload-icon" />
-                  <div>
-                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Sélectionner la photo du registre</h3>
-                    <p style={{ color: 'var(--text-muted)' }}>Glissez et déposez l'image ici, ou cliquez pour parcourir vos fichiers</p>
-                  </div>
-                  <input
-                    type="file"
-                    id="ocr-file-picker"
-                    accept="image/*"
-                    onChange={handleOcrFileSelect}
-                    style={{ display: 'none' }}
-                  />
+              {/* Upload Drop Zone */}
+              <div
+                className={`ocr-upload-area ${isDragging ? 'dragging' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById('ocr-file-picker').click()}
+                style={{ marginBottom: '1.5rem', border: '2px dashed var(--primary)', borderRadius: '8px', padding: '2rem', textAlign: 'center', cursor: 'pointer', background: isDragging ? 'var(--primary-light)' : 'transparent', transition: 'all 0.2s ease' }}
+              >
+                <Upload size={48} className="ocr-upload-icon" style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Ajouter des photos de registre</h3>
+                  <p style={{ color: 'var(--text-muted)' }}>Glissez et déposez jusqu'à 15 images ici, ou cliquez pour parcourir</p>
                 </div>
-              ) : (
-                /* Analysis Preview */
-                <div className="ocr-review-container">
-                  <div className="ocr-split-view">
-                    <div className="ocr-image-preview">
-                      <img src={ocrImageUrl} alt="Visualisation du registre" />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyItems: 'center', justifyContent: 'center', alignItems: 'center', padding: '2rem' }}>
-                      {isOcrLoading ? (
-                        <div style={{ textAlign: 'center', width: '100%' }}>
-                          <RefreshCw className="animate-pulse-soft" size={48} color="var(--primary)" style={{ margin: '0 auto 1rem' }} />
-                          <h3 style={{ fontSize: '1.15rem' }}>Numérisation de l'image en cours...</h3>
-                          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>Analyse des colonnes, de l'âge, du sexe et des scores nutritionnels.</p>
-                          <div className="ocr-progress-container" style={{ margin: '1.5rem auto 0' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                              <span>Progression</span>
-                              <span>{ocrProgress}%</span>
-                            </div>
-                            <div className="ocr-progress-bar">
-                              <div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }}></div>
-                            </div>
-                          </div>
-                        </div>
-                      ) : ocrParsedRecords.length === 0 ? (
-                        <div style={{ textAlign: 'center' }}>
-                          <FileText size={48} color="var(--text-muted)" style={{ margin: '0 auto 1rem' }} />
-                          <h3>Prêt pour l'analyse OCR</h3>
-                          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                             {settings.ocrEngine === 'gemini' 
-                               ? 'L\'intelligence artificielle Google Gemini Flash va décoder le tableau de registre.' 
-                               : 'Notre algorithme local Tesseract.js va décoder les écritures et colonnes.'}
-                          </p>
-                          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-                            <button className="btn btn-secondary" onClick={() => { setOcrImageFile(null); setOcrImageUrl(''); }}>
-                              Changer d'image
-                            </button>
-                            <button className="btn btn-primary" onClick={runOcrAnalysis}>
-                              Lancer la lecture OCR
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: 'center' }}>
-                          <Check size={48} color="var(--success)" style={{ margin: '0 auto 1rem' }} />
-                          <h3>Analyse terminée !</h3>
-                          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Veuillez revoir la table de validation ci-dessous.</p>
-                          <button className="btn btn-secondary" style={{ marginTop: '1rem' }} onClick={() => { setOcrParsedRecords([]); setOcrImageFile(null); setOcrImageUrl(''); }}>
-                            Importer une autre photo
-                          </button>
-                        </div>
-                      )}
+                <input
+                  type="file"
+                  id="ocr-file-picker"
+                  accept="image/*"
+                  onChange={handleOcrFileSelect}
+                  multiple
+                  style={{ display: 'none' }}
+                />
+              </div>
+
+              {/* Queue Dashboard */}
+              {ocrQueue.length > 0 && (
+                <div style={{ marginBottom: '2rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>File d'attente ({ocrQueue.length} / 15)</h3>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button className="btn btn-secondary" onClick={clearOcrQueue} disabled={isOcrLoading}>
+                        Vider la file
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={runOcrAnalysis}
+                        disabled={isOcrLoading || ocrQueue.filter(item => item.status === 'pending').length === 0}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        {isOcrLoading ? <RefreshCw className="animate-spin" size={16} /> : <Play size={16} />}
+                        Lancer l'analyse de la file
+                      </button>
                     </div>
                   </div>
 
-                  {/* Validation Table for OCR entries */}
-                  {ocrParsedRecords.length > 0 && (
-                    <div className="card animate-fade-in" style={{ marginTop: '1.5rem' }}>
-                      <div className="card-title">
-                        <h3>Validation des lignes détectées ({ocrParsedRecords.length})</h3>
-                        <div style={{ display: 'flex', gap: '0.75rem' }}>
-                          <button className="btn btn-secondary" onClick={() => setOcrParsedRecords([])}>Annuler</button>
-                          <button className="btn btn-success" onClick={handleSaveOcrEntries}>
-                            <Check size={16} /> Enregistrer ces {ocrParsedRecords.length} fiches
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+                    {ocrQueue.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => setOcrSelectedQueueItemId(item.id)}
+                        style={{
+                          border: `1px solid ${ocrSelectedQueueItemId === item.id ? 'var(--primary)' : 'var(--border)'}`,
+                          borderRadius: '8px',
+                          padding: '0.75rem',
+                          background: ocrSelectedQueueItemId === item.id ? 'var(--primary-light)' : 'var(--card-bg)',
+                          cursor: 'pointer',
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                          <img
+                            src={item.url}
+                            alt={item.name}
+                            style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)' }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                              {item.status === 'pending' && <span style={{ color: 'var(--text-muted)' }}>En attente</span>}
+                              {item.status === 'processing' && <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Lecture...</span>}
+                              {item.status === 'completed' && <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>Terminé</span>}
+                              {item.status === 'failed' && <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>Erreur</span>}
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveQueueItem(item.id);
+                            }}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                              padding: '0.25rem'
+                            }}
+                            disabled={isOcrLoading}
+                          >
+                            <X size={16} />
                           </button>
                         </div>
+
+                        {item.status === 'processing' && (
+                          <div className="ocr-progress-bar" style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div className="ocr-progress-fill" style={{ height: '100%', width: `${item.progress}%`, background: 'var(--primary)', transition: 'width 0.2s ease' }}></div>
+                          </div>
+                        )}
+                        
+                        {item.error && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.25rem', wordBreak: 'break-word' }}>
+                            {item.error}
+                          </div>
+                        )}
                       </div>
-                      
-                      <div className="table-container">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Nom Mère</th>
-                              <th>Prénom Enfant</th>
-                              <th>Date Naissance</th>
-                              <th>Sexe</th>
-                              <th>Quartier</th>
-                              <th>Poids (kg)</th>
-                              <th>Taille (cm)</th>
-                              <th>Score (IPT)</th>
-                              <th>Texte Brut Détecté</th>
-                              <th>Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ocrParsedRecords.map((rec, index) => (
-                              <tr key={rec.id}>
-                                <td>
-                                  <input
-                                    type="text"
-                                    value={rec.motherName}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'motherName', e.target.value)}
-                                    className="cell-input"
-                                    style={{ fontWeight: '600' }}
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="text"
-                                    value={rec.childName}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'childName', e.target.value)}
-                                    className="cell-input"
-                                    style={{ fontWeight: 'bold' }}
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="date"
-                                    value={rec.birthDate}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'birthDate', e.target.value)}
-                                    className="cell-input"
-                                  />
-                                </td>
-                                <td>
-                                  <select
-                                    value={rec.sex}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'sex', e.target.value)}
-                                    className="cell-select"
-                                  >
-                                    <option value="M">M</option>
-                                    <option value="F">F</option>
-                                  </select>
-                                </td>
-                                <td>
-                                  <input
-                                    type="text"
-                                    value={rec.quartier}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'quartier', e.target.value)}
-                                    className="cell-input"
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    value={rec.weight}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'weight', e.target.value)}
-                                    className="cell-input"
-                                    placeholder="kg"
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    value={rec.height}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'height', e.target.value)}
-                                    className="cell-input"
-                                    placeholder="cm"
-                                  />
-                                </td>
-                                <td>
-                                  <select
-                                    value={rec.score}
-                                    onChange={(e) => handleOcrParsedCellChange(index, 'score', e.target.value)}
-                                    className="cell-select"
-                                  >
-                                    <option value="1.5">+1,5</option>
-                                    <option value="1">+1</option>
-                                    <option value="0">0</option>
-                                    <option value="-1">-1</option>
-                                    <option value="-1.5">-1,5</option>
-                                    <option value="-2">-2 (MAM)</option>
-                                    <option value="-3">-3 (MAS)</option>
-                                  </select>
-                                </td>
-                                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'normal', maxWidth: '200px' }}>
-                                  <code>{rec.rawText}</code>
-                                </td>
-                                <td>
-                                  <button className="btn-icon-only" style={{ color: 'var(--danger)' }} onClick={() => handleRemoveOcrRecord(index)}>
-                                    <Trash2 size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview of the Selected Queue Item Image */}
+              {ocrSelectedQueueItemId && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.75rem' }}>
+                    Aperçu de l'image sélectionnée : {ocrQueue.find(q => q.id === ocrSelectedQueueItemId)?.name}
+                  </h4>
+                  <div style={{ display: 'flex', justifyContent: 'center', background: '#f5f5f5', borderRadius: '8px', padding: '1rem', maxHeight: '400px', overflow: 'auto' }}>
+                    <img
+                      src={ocrQueue.find(q => q.id === ocrSelectedQueueItemId)?.url}
+                      alt="Aperçu"
+                      style={{ maxWidth: '100%', maxHeight: '350px', objectFit: 'contain' }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Validation Table for OCR entries */}
+              {ocrParsedRecords.length > 0 && (
+                <div className="card animate-fade-in" style={{ marginTop: '2rem', border: '1px solid var(--border)', background: 'var(--card-bg)' }}>
+                  <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 'bold' }}>Validation des lignes détectées ({ocrParsedRecords.length})</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Modifiez les cases ci-dessous si des erreurs de lecture se sont glissées</p>
                     </div>
-                  )}
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button className="btn btn-secondary" onClick={() => setOcrParsedRecords([])}>Effacer les résultats</button>
+                      <button className="btn btn-success" onClick={handleSaveOcrEntries} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check size={16} /> Enregistrer ces {ocrParsedRecords.length} fiches
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Nom Mère</th>
+                          <th>Prénom Enfant</th>
+                          <th>Âge (Mois)</th>
+                          <th>Sexe</th>
+                          <th>Quartier</th>
+                          <th>Poids (kg)</th>
+                          <th>Taille (cm)</th>
+                          <th>Score (IPT)</th>
+                          <th>Texte Brut Détecté</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ocrParsedRecords.map((rec, index) => (
+                          <tr key={rec.id || index}>
+                            <td>
+                              <input
+                                type="text"
+                                value={rec.motherName}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'motherName', e.target.value)}
+                                className="cell-input"
+                                style={{ fontWeight: '600' }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                value={rec.childName}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'childName', e.target.value)}
+                                className="cell-input"
+                                style={{ fontWeight: 'bold' }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                value={rec.age}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'age', e.target.value)}
+                                className="cell-input"
+                                min="0"
+                                placeholder="Mois"
+                              />
+                            </td>
+                            <td>
+                              <select
+                                value={rec.sex}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'sex', e.target.value)}
+                                className="cell-select"
+                              >
+                                <option value="M">M</option>
+                                <option value="F">F</option>
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                value={rec.quartier}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'quartier', e.target.value)}
+                                className="cell-input"
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={rec.weight}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'weight', e.target.value)}
+                                className="cell-input"
+                                placeholder="kg"
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                value={rec.height}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'height', e.target.value)}
+                                className="cell-input"
+                                placeholder="cm"
+                              />
+                            </td>
+                            <td>
+                              <select
+                                value={rec.score}
+                                onChange={(e) => handleOcrParsedCellChange(index, 'score', e.target.value)}
+                                className="cell-select"
+                              >
+                                <option value="1.5">+1,5</option>
+                                <option value="1">+1</option>
+                                <option value="0">0</option>
+                                <option value="-1">-1</option>
+                                <option value="-1.5">-1,5</option>
+                                <option value="-2">-2 (MAM)</option>
+                                <option value="-3">-3 (MAS)</option>
+                              </select>
+                            </td>
+                            <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'normal', maxWidth: '200px' }}>
+                              <code>{rec.rawText}</code>
+                            </td>
+                            <td>
+                              <button className="btn-icon-only" style={{ color: 'var(--danger)' }} onClick={() => handleRemoveOcrRecord(index)}>
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
