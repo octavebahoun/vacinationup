@@ -34,7 +34,7 @@ export const performOCR = async (imageFile, onProgress, settings) => {
       const base64Data = await fileToBase64(imageFile);
       const apiKey = settings.geminiApiKey.trim();
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -172,11 +172,11 @@ function parseOcrLines(ocrLines) {
 
     // 2. Find Age
     let ageMonths = '';
-    
+
     // Look for "6 mois", "10 mois", "1 an", "1an", etc.
     const ageMoisMatch = text.match(/(\d+)\s*mois/i);
     const ageAnMatch = text.match(/(\d+)\s*an/i);
-    
+
     if (ageMoisMatch) {
       ageMonths = parseInt(ageMoisMatch[1], 10);
     } else if (ageAnMatch) {
@@ -213,7 +213,7 @@ function parseOcrLines(ocrLines) {
     let motherName = '';
     let childName = '';
     const words = text.split(/\s+/);
-    
+
     // Basic clean up of text to extract names
     const nameCandidate = words.slice(0, 3).join(' ').replace(/[^a-zA-Z\s]/g, '').trim();
     if (nameCandidate.length > 2) {
